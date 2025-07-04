@@ -5,11 +5,21 @@
   <title>Сканировать QR</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   
-  <!-- Исправленная ссылка -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr @1.4.0/dist/jsQR.js"></script>
-  <script src="https://telegram.org/js/telegram-web-app.js "></script>
+  <!-- Исправленные ссылки (убрал пробелы) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   
   <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      position: fixed;
+    }
+    
     #video {
       width: 100%;
       height: 100%;
@@ -18,7 +28,7 @@
       top: 0;
       left: 0;
       z-index: 1;
-      transform: scaleX(-1); /* Зеркалирование */
+      /* Убрал зеркалирование */
     }
 
     #overlay {
@@ -28,14 +38,22 @@
       width: 100%;
       height: 100%;
       z-index: 2;
-      text-align: center;
-      padding-top: 20%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      padding-top: 20px;
       background: rgba(0,0,0,0.6);
+      pointer-events: none; /* Клики проходят сквозь overlay */
     }
 
     #msg {
       font-size: 1.5em;
       color: #fff;
+      text-align: center;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 20px;
+      border-radius: 10px;
     }
 
     #startButton {
@@ -46,20 +64,32 @@
       background: #4CAF50;
       color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 30px;
       cursor: pointer;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
 
     .hidden {
       display: none;
     }
+    
+    /* Скрываем элементы управления видео */
+    video::-webkit-media-controls {
+      display: none !important;
+    }
+    video::-webkit-media-controls-play-button {
+      display: none !important;
+    }
+    video::-webkit-media-controls-start-playback-button {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
-  <button id="startButton" class="hidden">Запустить сканер</button>
+  <button id="startButton">Запустить сканер</button>
   <video id="video" autoplay muted playsinline class="hidden"></video>
   <div id="overlay" class="hidden">
     <div id="msg">📷 Наведите камеру на QR</div>
@@ -71,7 +101,10 @@
     const startButton = document.getElementById('startButton');
     const overlay = document.getElementById('overlay');
 
-    startButton.classList.remove('hidden');
+    // Для обычного браузера показываем кнопку
+    if (!window.Telegram?.WebApp) {
+      startButton.classList.remove('hidden');
+    }
 
     startButton.addEventListener('click', async () => {
       startButton.classList.add('hidden');
@@ -81,16 +114,24 @@
     async function startCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+          video: { 
+            facingMode: "environment", 
+            width: { min: 640, ideal: 1280 }, 
+            height: { min: 480, ideal: 720 } 
+          }
         });
         
         video.srcObject = stream;
         video.classList.remove('hidden');
         overlay.classList.remove('hidden');
         
-        setTimeout(() => {
+        // Принудительно запускаем видео
+        video.play().catch(e => console.log("Video play error:", e));
+        
+        // Запускаем сканирование после загрузки метаданных
+        video.onloadedmetadata = () => {
           requestAnimationFrame(scanFrame);
-        }, 500);
+        };
         
       } catch (err) {
         console.error('Camera error:', err);
@@ -103,15 +144,13 @@
     const context = canvas.getContext('2d');
 
     function scanFrame() {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      if (video.readyState >= video.HAVE_METADATA) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         
+        // Убрал зеркалирование при отрисовке
         context.clearRect(0, 0, canvas.width, canvas.height);
-        context.save();
-        context.scale(-1, 1);
-        context.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-        context.restore();
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imgData.data, canvas.width, canvas.height);
@@ -142,6 +181,10 @@
         startCamera();
       }
     });
+    
+    // Предотвращаем появление стандартных элементов управления видео
+    video.addEventListener('contextmenu', e => e.preventDefault());
+    video.controls = false;
   </script>
 </body>
 </html>
