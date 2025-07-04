@@ -1,0 +1,1 @@
+# cassir_scannerqr_2.00
