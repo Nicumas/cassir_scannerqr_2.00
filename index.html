@@ -5,7 +5,6 @@
   <title>Сканировать QR</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   
-  <!-- Исправленные ссылки (убрал пробелы) -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   
@@ -28,7 +27,32 @@
       top: 0;
       left: 0;
       z-index: 1;
-      /* Убрал зеркалирование */
+      /* Гарантированно скрываем элементы управления */
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+
+    /* Стили для скрытия элементов управления видео */
+    video::-webkit-media-controls {
+      display: none !important;
+      -webkit-appearance: none;
+    }
+    video::-webkit-media-controls-panel,
+    video::-webkit-media-controls-play-button,
+    video::-webkit-media-controls-start-playback-button,
+    video::-webkit-media-controls-overlay-play-button,
+    video::-webkit-media-controls-mute-button,
+    video::-webkit-media-controls-toggle-closed-captions-button,
+    video::-webkit-media-controls-fullscreen-button,
+    video::-webkit-media-controls-timeline,
+    video::-webkit-media-controls-volume-slider {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+      width: 0 !important;
+      height: 0 !important;
     }
 
     #overlay {
@@ -44,7 +68,7 @@
       align-items: center;
       padding-top: 20px;
       background: rgba(0,0,0,0.6);
-      pointer-events: none; /* Клики проходят сквозь overlay */
+      pointer-events: none;
     }
 
     #msg {
@@ -54,64 +78,32 @@
       background: rgba(0,0,0,0.5);
       padding: 10px 20px;
       border-radius: 10px;
-    }
-
-    #startButton {
-      position: absolute;
-      z-index: 10;
-      padding: 15px 30px;
-      font-size: 1.2em;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 30px;
-      cursor: pointer;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
-
-    .hidden {
-      display: none;
-    }
-    
-    /* Скрываем элементы управления видео */
-    video::-webkit-media-controls {
-      display: none !important;
-    }
-    video::-webkit-media-controls-play-button {
-      display: none !important;
-    }
-    video::-webkit-media-controls-start-playback-button {
-      display: none !important;
+      margin-top: 20px;
     }
   </style>
 </head>
 <body>
-  <button id="startButton">Запустить сканер</button>
-  <video id="video" autoplay muted playsinline class="hidden"></video>
-  <div id="overlay" class="hidden">
+  <video id="video" autoplay muted playsinline></video>
+  <div id="overlay">
     <div id="msg">📷 Наведите камеру на QR</div>
   </div>
 
   <script>
     const video = document.getElementById('video');
     const msg = document.getElementById('msg');
-    const startButton = document.getElementById('startButton');
-    const overlay = document.getElementById('overlay');
 
-    // Для обычного браузера показываем кнопку
-    if (!window.Telegram?.WebApp) {
-      startButton.classList.remove('hidden');
-    }
-
-    startButton.addEventListener('click', async () => {
-      startButton.classList.add('hidden');
-      startCamera();
-    });
-
-    async function startCamera() {
+    // Гарантированное скрытие элементов управления
+    video.controls = false;
+    video.disablePictureInPicture = true;
+    video.setAttribute('controlslist', 'nodownload nofullscreen noremoteplayback');
+    video.setAttribute('disablepictureinpicture', 'true');
+    
+    // Автоматический запуск камеры
+    window.addEventListener("load", async () => {
+      if (window.Telegram?.WebApp) {
+        Telegram.WebApp.ready();
+      }
+      
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { 
@@ -122,13 +114,12 @@
         });
         
         video.srcObject = stream;
-        video.classList.remove('hidden');
-        overlay.classList.remove('hidden');
         
-        // Принудительно запускаем видео
-        video.play().catch(e => console.log("Video play error:", e));
+        video.play().catch(e => {
+          console.log("Video play error:", e);
+          msg.textContent = "❌ Ошибка запуска камеры";
+        });
         
-        // Запускаем сканирование после загрузки метаданных
         video.onloadedmetadata = () => {
           requestAnimationFrame(scanFrame);
         };
@@ -136,9 +127,8 @@
       } catch (err) {
         console.error('Camera error:', err);
         msg.textContent = '🚫 Ошибка доступа к камере';
-        startButton.classList.remove('hidden');
       }
-    }
+    });
 
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
@@ -148,7 +138,6 @@
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         
-        // Убрал зеркалирование при отрисовке
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
@@ -175,16 +164,8 @@
       requestAnimationFrame(scanFrame);
     }
 
-    window.addEventListener("load", () => {
-      if (window.Telegram?.WebApp) {
-        Telegram.WebApp.ready();
-        startCamera();
-      }
-    });
-    
-    // Предотвращаем появление стандартных элементов управления видео
+    // Предотвращаем появление элементов управления
     video.addEventListener('contextmenu', e => e.preventDefault());
-    video.controls = false;
   </script>
 </body>
 </html>
